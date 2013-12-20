@@ -7,11 +7,9 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import org.achartengine.ChartFactory;
@@ -21,22 +19,20 @@ import org.achartengine.model.XYMultipleSeriesDataset;
 import org.achartengine.renderer.XYMultipleSeriesRenderer;
 import org.achartengine.renderer.XYSeriesRenderer;
 
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
 public class MainMenu extends Activity implements View.OnClickListener {
-    final int ONE_HOUR = 3600000;
-    final int ONE_DAY = ONE_HOUR * 24;
-    final int ONE_MONTH = ONE_DAY * 31;
-    final int ONE_YEAR = ONE_DAY * 365;
+    final long ONE_HOUR = 3600000;
+    final long ONE_DAY = ONE_HOUR * 24;
+    final long ONE_MONTH = ONE_DAY * 31;
+    final long ONE_YEAR = ONE_DAY * 365;
     final int ORANGE = 0xFFFF8800;
     final int GREEN = 0xFF00CC00;
 
-    private GraphicalView mChart;
+    private GraphicalView chart;
 
     /**
-     * When the view is created, display the last day of hourly data in the chart area by default.
+     * Registers the view as listener for the control buttons and displays the last day of hourly data in the chart area.
      * @param savedInstanceState
      */
     @Override
@@ -44,7 +40,6 @@ public class MainMenu extends Activity implements View.OnClickListener {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_menu);
 
-        // Connect the interface
         findViewById(R.id.serviceToggleButton).setOnClickListener(this);
         findViewById(R.id.dayButton).setOnClickListener(this);
         findViewById(R.id.monthButton).setOnClickListener(this);
@@ -58,7 +53,7 @@ public class MainMenu extends Activity implements View.OnClickListener {
     }
 
     /**
-     * Handle click events from buttons.
+     * Handles click events from buttons.
      * @param view The view generating the callback
      */
     @Override
@@ -76,7 +71,7 @@ public class MainMenu extends Activity implements View.OnClickListener {
     }
 
     /**
-     * Make sure the service start/stop button matches the service's current state
+     * Makes sure the service start/stop button matches the service's current state.
      */
     private void syncServiceButton() {
         if(serviceIsRunning()) {
@@ -91,16 +86,14 @@ public class MainMenu extends Activity implements View.OnClickListener {
     }
 
     /**
-     * Starts the accelerometry service if it's stopped, and stops it if it's running.
+     * Starts the accelerometry service if it's stopped, stops it if it's running.
      */
     private void serviceToggle() {
         Intent i = new Intent(this, AccelDataCollectorService.class);
         if(serviceIsRunning()) {
             stopService(i);
-            (Toast.makeText(this, "Service Stopped", Toast.LENGTH_SHORT)).show();
         } else {
             startService(i);
-            (Toast.makeText(this, "Service Started", Toast.LENGTH_SHORT)).show();
         }
         syncServiceButton();
     }
@@ -110,7 +103,6 @@ public class MainMenu extends Activity implements View.OnClickListener {
      * @return True if the service is currently running.
      */
     private boolean serviceIsRunning() {
-        boolean serviceIsRunning = false;
             ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
             for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
                 if (service.service.getClassName().equals(AccelDataCollectorService.class.getName())) {
@@ -120,6 +112,9 @@ public class MainMenu extends Activity implements View.OnClickListener {
         return false;
     }
 
+    /**
+     * Requests the last 24 hours of hourly averages and displays them in the chart area.
+     */
     private void showDay() {
         GaitParamsDbAdapter db = new GaitParamsDbAdapter(getApplicationContext());
         db.open();
@@ -127,55 +122,57 @@ public class MainMenu extends Activity implements View.OnClickListener {
         displayChart(c);
     }
 
+    /**
+     * Requests the last 31 days of daily averages and displays them in the chart area.
+     */
     private void showMonth() {
         GaitParamsDbAdapter db = new GaitParamsDbAdapter(getApplicationContext());
         db.open();
-        Cursor c = db.getHourlyGaitParams(db.getLastTimestamp() - ONE_MONTH, db.getLastTimestamp());
+        Cursor c = db.getDailyGaitParams(db.getLastTimestamp() - ONE_MONTH, db.getLastTimestamp());
         displayChart(c);
     }
 
+    /**
+     * Requests the last 12 months of monthly averages and displays them in the chart area.
+     */
     private void showYear() {
         GaitParamsDbAdapter db = new GaitParamsDbAdapter(getApplicationContext());
         db.open();
-        Cursor c = db.getHourlyGaitParams(db.getLastTimestamp() - ONE_YEAR, db.getLastTimestamp());
+        Cursor c = db.getMonthlyGaitParams(db.getLastTimestamp() - ONE_YEAR, db.getLastTimestamp());
         displayChart(c);
     }
 
+    /**
+     * Takes a DB cursor containing time-stamped gait parameters, formats the contents, and displays them as a chart.
+     * @param c The data set to display.
+     */
     private void displayChart(Cursor c)
     {
+        // Sanity check. Don't try and display the contents of an empty cursor.
         if(c.getCount() == 0) {
-            Log.w("StrideMinder", "FOUND YOUR PROBLEM THERE (empty cursor)");
             return;
         }
 
-        String[] titles = new String[] { "Stride regularity", "Stride symmetry" };
-
-        int numValues = c.getCount();
-
-        List<Date[]> xValues = new ArrayList<Date[]>();
-        List<double[]> yValues = new ArrayList<double[]>();
-        Date[] timestampsArray = new Date[numValues];
-        double[] strideRegArray = new double[numValues];
-        double[] strideSymArray = new double[numValues];
+        // Get the column numbers for the data we need.
         int timestampIndex = c.getColumnIndex(GaitParamsDbAdapter.KEY_TIMESTAMP);
         int strideRegIndex = c.getColumnIndex(GaitParamsDbAdapter.KEY_STRIDE_REGULARITY);
         int strideSymIndex = c.getColumnIndex(GaitParamsDbAdapter.KEY_STRIDE_SYMMETRY);
 
-        // Set up and populate the two data sets to display
+        // Set up and populate the two data sets to display.
         TimeSeries strideRegularity = new TimeSeries("Stride Regularity");
         TimeSeries strideSymmetry = new TimeSeries("Stride Symmetry");
 
-        for(int i = 0; c.moveToNext(); i++) {
+        while(c.moveToNext()) {
             strideRegularity.add(new Date(c.getLong(timestampIndex)), c.getDouble(strideRegIndex));
             strideSymmetry.add(new Date(c.getLong(timestampIndex)), c.getDouble(strideSymIndex));
         }
 
-        // Add the two data sets to a container
+        // Bundle the two data sets into a container.
         XYMultipleSeriesDataset datasets = new XYMultipleSeriesDataset();
         datasets.addSeries(strideRegularity);
         datasets.addSeries(strideSymmetry);
 
-        // Set up renderers for the two data sets
+        // Set up renderers for the two data sets.
         XYSeriesRenderer regularityRenderer = new XYSeriesRenderer();
         regularityRenderer.setColor(Color.CYAN);
         regularityRenderer.setLineWidth(2);
@@ -186,7 +183,7 @@ public class MainMenu extends Activity implements View.OnClickListener {
         symmetryRenderer.setLineWidth(2);
         symmetryRenderer.setFillPoints(false);
 
-        // Add the two renderers to a container & set up properties
+        // Bundle the two renderers into another container & set up properties.
         XYMultipleSeriesRenderer renderer = new XYMultipleSeriesRenderer();
         renderer.addSeriesRenderer(regularityRenderer);
         renderer.addSeriesRenderer(symmetryRenderer);
@@ -195,12 +192,11 @@ public class MainMenu extends Activity implements View.OnClickListener {
         //renderer.setXLabels(5);
         renderer.setShowGrid(true);
 
-        FrameLayout chart_container = (FrameLayout)findViewById(R.id.chartContainer);
-
         // Creating an intent to plot line chart using dataset and multipleRenderer
-        mChart = (GraphicalView)ChartFactory.getLineChartView(getBaseContext(), datasets, renderer);
+        chart = ChartFactory.getLineChartView(getBaseContext(), datasets, renderer);
 
-        // Add the graphical view mChart object into the Linear layout .
-        chart_container.addView(mChart);
+        // Place the chart in its designated container.
+        FrameLayout chartContainer = (FrameLayout)findViewById(R.id.chartContainer);
+        chartContainer.addView(chart);
     }
 }

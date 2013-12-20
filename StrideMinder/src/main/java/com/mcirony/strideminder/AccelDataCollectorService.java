@@ -18,7 +18,6 @@ import android.util.Log;
  */
 public class AccelDataCollectorService extends Service implements SensorEventListener{
     MoeNilssenAccelProcessor mnap;
-    GaitParamsDbAdapter db;
     PowerManager pm;
     PowerManager.WakeLock wl;
     SensorManager sm;
@@ -44,6 +43,9 @@ public class AccelDataCollectorService extends Service implements SensorEventLis
         return null;
     }
 
+    /**
+     * Gets the sensors and wakelock this service needs to run.
+     */
     @Override
     public void onCreate() {
         super.onCreate();
@@ -56,25 +58,41 @@ public class AccelDataCollectorService extends Service implements SensorEventLis
         wl.acquire();
     }
 
+    /**
+     * Releases the sensors and wakelock.
+     */
     public void onDestroy() {
-        // Change the interface to make it obvious whether it's running or not
-        /*Toast.makeText(this, R.string.gait_monitoring_service_stopped, Toast.LENGTH_SHORT).show(); */
         super.onDestroy();
         sm.unregisterListener(this, acc);
         wl.release();
     }
 
+    /**
+     * Requests accelerometer updates at the highest possible frequency (generally 100Hz).
+     * Params are all boilerplate.
+     * @param intent
+     * @param flags
+     * @param startId
+     * @return
+     */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // Change the interface to make it obvious whether it's running or not
-        /*Toast.makeText(this, R.string.gait_monitoring_service_started, Toast.LENGTH_SHORT).show(); */
         sm.registerListener(this, acc, SensorManager.SENSOR_DELAY_FASTEST);
         return START_STICKY;
     }
 
+    /**
+     * Handles a possible change in sensor accuracy. Required by SensorEventListener.
+     * @param sensor
+     * @param accuracy
+     */
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 
+    /**
+     * Receive timestamped accelerometer data and store it in the buffers.
+     * @param event The SensorEvent containing the accelerometer data.
+     */
     @Override
     public void onSensorChanged(SensorEvent event) {
         // Init buffers if required
@@ -90,15 +108,14 @@ public class AccelDataCollectorService extends Service implements SensorEventLis
         currentBufferIndex++;
 
         // When a recording block has been completed, send the buffers for processing.
-        // Autocorrelation takes a long time, so process in a new thread to avoid blocking this one.
+        // Autocorrelation can take a few seconds, so process in another thread to avoid blocking this one.
         if(event.timestamp >= bufferStartTimeNanosec + blockDurationNanosec){
             Log.w("StrideMinder", "Processing Buffers");
-            Thread t = new Thread(new Runnable() {
+            new Thread(new Runnable() {
                 public void run() {
                     mnap.processBuffers(bufferStartTimeMillisec, currentBufferIndex, bufferX, bufferY, bufferZ, bufferT, true, false);
                 }
-            });
-            t.start();
+            }).start();
 
             bufferReady = false;
         }
@@ -106,7 +123,7 @@ public class AccelDataCollectorService extends Service implements SensorEventLis
 
 
     /**
-     * Set up the accel data buffers for the next sampling window
+     * Sets up the accelerometry buffers for the next sampling window
      * @param msec Starting time (milliseconds since epoch)
      * @param nsec Starting time (nanoseconds - locally consistent but not an absolute measurement)
      */
@@ -120,5 +137,4 @@ public class AccelDataCollectorService extends Service implements SensorEventLis
         currentBufferIndex = 0;
         bufferReady = true;
     }
-
 }

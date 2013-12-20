@@ -117,7 +117,6 @@ public class GaitParamsDbAdapter {
     	 *  If the last record and the new record straddle an hour, day or month boundary,
     	 *  calculate averages and put them in the appropriate table.
     	 */
-
         long lastTimestamp = getLastTimestamp();
         // Sanity check: Don't start trying to average things if this is the first record in the database.
         if(lastTimestamp > 0) {

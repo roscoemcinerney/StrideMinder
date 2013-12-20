@@ -5,12 +5,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
 
 import android.content.Context;
 import android.os.Environment;
-import android.util.Log;
+import android.widget.Toast;
 
 public class MoeNilssenAccelProcessor {
     public static final double WALKING_RMS_THRESHOLD = 0.25; // This value was determined experimentally & is explained where used.
@@ -23,10 +22,16 @@ public class MoeNilssenAccelProcessor {
     }
 
     /**
-     * Takes a buffer of three-dimensional accelerometry data
+     * Takes a buffer of three-dimensional accelerometry data.
+     * Normalises it to a consistent frequency.
+     * Determines the direction of gravity by averaging measurements.
+     * Rotates the frame of reference so that Z+ is up.
+     * Performs autocorrelation on the corrected Z-axis time series.
+     * Takes the root-mean-square of the autocorrelation series to determine whether the data represents walking.
+     * Finds the first three peaks in the autocorrelation series and computers gait parameters from their locations and magnitudes.
+     * Writes the gait parameters to the database.
      *
-     *
-     * @param absoluteStartTimeMillisec The system time when recording started for this accelerometry block
+     * @param absoluteStartTimeMillisec The system time when recording started for this accelerometry block.
      * @param tOriginal Array of timestamps in nanoseconds. First timestamp should be 0, but if not this will be accounted for.
      * @param xOriginal Array of X acceleration values
      * @param yOriginal Array of Y acceleration values
@@ -124,7 +129,7 @@ public class MoeNilssenAccelProcessor {
         // = dot product of two vectors / product of their magnitudes
         // double cosTheta = (avgX * 0 + avgY * 0 + avgZ * 1) / (avgMag * 1.0);
         double cosTheta = avgZ / avgMag;
-        double sinTheta = (double) Math.sqrt(1-(cosTheta*cosTheta));
+        double sinTheta = Math.sqrt(1-(cosTheta*cosTheta));
 
         // Construct the rotation matrix now! Don't care about gimbal lock because we're only doing one simple rotation.
         // Since Z component of axis is always zero as shown above, remove all terms that multiply by it.
@@ -333,8 +338,9 @@ public class MoeNilssenAccelProcessor {
                 fos.write(sb.toString().getBytes());
                 fos.flush();
                 fos.close();
-                Log.w("StrideMinder", "Wrote out file");
+                (Toast.makeText(ctx, "Wrote out file.", Toast.LENGTH_SHORT)).show();
             } catch(IOException e) {
+                (Toast.makeText(ctx, "Couldn't write file: " + e.getMessage(), Toast.LENGTH_LONG)).show();
             }
         }
     }
@@ -348,6 +354,6 @@ public class MoeNilssenAccelProcessor {
         Date date = new Date(time);
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd_HH'H'mm'M'ss'S'");
         return df.format(date);
-    };
+    }
 
 }
