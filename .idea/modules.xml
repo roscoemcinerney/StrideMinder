@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/StrideMinder/StrideMinder.iml" filepath="$PROJECT_DIR$/StrideMinder/StrideMinder.iml" />
+      <module fileurl="file://$PROJECT_DIR$/StrideMinderProject.iml" filepath="$PROJECT_DIR$/StrideMinderProject.iml" />
+    </modules>
+  </component>
+</project>
+
